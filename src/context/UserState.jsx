@@ -1,0 +1,302 @@
+import { useEffect, useState } from 'react';
+import { UserContext } from './Context';
+import { useCallback } from 'react';
+import { jwtDecode } from 'jwt-decode';
+import { useNavigate } from 'react-router-dom';
+import UserApi from '../apiservice/UserApi';
+import axios from 'axios';
+
+const UserState = (props) => {
+
+  const navigate = useNavigate();
+
+  // Checking Token Expiry
+  const isTokenExpired = (token) => {
+    try {
+      const { exp } = jwtDecode(token);
+      return Date.now() >= exp * 1000;
+    } catch {
+      setIsLoggedIn(false);
+      navigate('/user-login');
+      return true;
+    }
+  };
+
+  // Set Login State (Logged In or Logged Out)
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    const token = localStorage.getItem('user_access_token');
+    return token && !isTokenExpired(token);
+  });
+
+  // const [isLoggedIn, setIsLoggedIn] = useState(() => {
+  //   return !!localStorage.getItem('user_access_token');
+  // });
+
+
+  // Login handler: save tokens and set login state
+  const login = ({ accessToken, refreshToken, user_id }) => {
+    localStorage.setItem('user_access_token', accessToken);
+    localStorage.setItem('user_refresh_token', refreshToken);
+    localStorage.setItem("user_id", user_id);
+    setIsLoggedIn(true);
+  };
+
+  // Logout handler: remove tokens and update state
+  const logout = useCallback(() => {
+    localStorage.removeItem('user_access_token');
+    localStorage.removeItem('user_refresh_token');
+    localStorage.removeItem("user_id");
+    setIsLoggedIn(false);
+    navigate('/user-login');
+  }, [navigate]);
+
+  // Map API KEY
+  const locAPI = process.env.REACT_APP_LOCATION_API;
+  const [location, setLocation] = useState("");
+
+  // Location Handler: Get Current Location
+  const getLocation = useCallback((position) => {
+    const location_url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${position.coords.latitude},${position.coords.longitude}&key=${locAPI}`;
+    console.log(location_url);
+
+    axios.get(location_url).then(response => {
+      const components = response.data.results[0].address_components;
+      const city = components.find(c => c.types.includes("administrative_area_level_2"));
+      if (city) {
+        setLocation(city.long_name.split(" ")[0]);
+        fetchLocalRestaurants(city.long_name.split(" ")[0]);
+      }
+    })
+      .catch(error => {
+        console.error("error :", error);
+      });
+  }, [locAPI]);
+
+  const [userData, setuserData] = useState([]);
+
+  // User Details Handler: Fetch User Details
+  const fetchUserDetails = () => {
+    const user_id = localStorage.getItem('user_id');
+    UserApi.get(`user/details/${user_id}/`)
+      .then(response => {
+        setuserData(response.data);
+      })
+      .catch(error => {
+        console.error("There was an error fetching the user data!", error);
+      });
+  };
+
+  // Update User Details Handler : Update Details
+  const updateUserData = async (updatedData) => {
+    const user_id = localStorage.getItem('user_id');
+    try {
+      await UserApi.patch(`user/details/${user_id}/`, updatedData);
+      fetchUserDetails();
+      return true;
+    } catch (error) {
+      console.log("Error response:", error.response?.data);
+      return false;
+    }
+  }
+
+  const [localRestaurantData, setLocalRestaurantData] = useState([]);
+
+  // Local Restaurants Handler: Fetch Local Restaurants
+  const fetchLocalRestaurants = (loc) => {
+    UserApi.get(`restaurant/details/?verification_status=verified&city=${loc}`)
+      .then(response => {
+        setLocalRestaurantData(response.data);
+      })
+      .catch(error => {
+        console.error("There was an error fetching the restaurant data!", error);
+      });
+  };
+
+  const [restaurantData, setRestaurantData] = useState([]);
+  // Restaurant Details Handler: Fetch Restaurant Details
+  const fetchRestaurantDetails = (restaurant_id) => {
+    UserApi.get(`restaurant/details/${restaurant_id}/`)
+      .then(response => {
+        setRestaurantData(response.data);
+      })
+      .catch(error => {
+        console.error("There was an error fetching the restaurant data!", error);
+      });
+  };
+
+  const [restaurantTables, setRestaurantTables] = useState([]);
+  // Fetch restaurant tables with proper error handling
+  const fetchRestaurantTables = (restaurant_id) => {
+    if (!restaurant_id) {
+      console.error("No restaurant ID provided");
+      setRestaurantTables([]);
+      return;
+    }
+
+    // Clean the ID (remove trailing slashes, trim whitespace)
+    const cleanId = String(restaurant_id).trim().replace(/\/$/, '');
+
+    console.log('Fetching tables for restaurant:', cleanId);
+
+    UserApi.get(`management/tables/?restaurant=${cleanId}`)
+      .then(response => {
+        console.log('Tables fetched:', response.data);
+        setRestaurantTables(response.data);
+      })
+      .catch(error => {
+        console.error("Error fetching tables:", error);
+        console.error("Error response:", error.response?.data);
+        setRestaurantTables([]); // Reset to empty array on error
+      });
+  };
+
+  // Fetch bookings with proper error handling
+  const fetchBookingsForDateTime = async (restaurantId, date, time = null) => {
+    try {
+      if (!restaurantId || !date) {
+        console.error("Missing required parameters");
+        return [];
+      }
+
+      // Clean the ID
+      const cleanId = String(restaurantId).trim().replace(/\/$/, '');
+
+      // Build URL based on whether time is provided
+      let url = `management/table-bookings/?restaurant=${cleanId}&booking_date=${date}`;
+
+      // Only add time filter if explicitly provided
+      if (time) {
+        url += `&booking_time=${time}`;
+      }
+
+      console.log('Fetching bookings:', url);
+      const response = await UserApi.get(url);
+      console.log('Bookings fetched:', response.data);
+
+      return response.data;
+    } catch (err) {
+      console.error("Error fetching bookings:", err);
+      console.error("Error response:", err.response?.data);
+      return [];
+    }
+  };
+
+  // Create a new table booking
+  const createTableBooking = async (bookingData) => {
+    try {
+      const response = await UserApi.post('management/table-bookings/', bookingData);
+      console.log('Booking created:', response.data);
+      return { success: true, data: response.data };
+    } catch (error) {
+      console.error('Error creating booking:', error);
+      console.error('Error response:', error.response?.data);
+      return {
+        success: false,
+        error: error.response?.data || 'Failed to create booking'
+      };
+    }
+  };
+
+  const [myBookings, setMyBookings] = useState([]);
+  // fetch Specific user All Bookings
+  const fetchMyAllBookings = async (bookingId) => {
+    try {
+      const response = await UserApi.get(`management/table-bookings/?user=${bookingId}`);
+      setMyBookings(response.data);
+    } catch (error) {
+      console.log('Error response:', error.response?.data);
+    }
+  };
+
+
+  // Get All Menu from Specific Restaurant
+  const [restaurantMenuItems, setRestaurantMenuItems] = useState([]);
+  // fetch Specific user All Bookings
+  const fetchRestaurantItems = async (restaurant_id) => {
+    try {
+      const response = await UserApi.get(`management/menu-items/?restaurant=${restaurant_id}`);
+      setRestaurantMenuItems(response.data);
+    } catch (error) {
+      console.log('Error response:', error.response?.data);
+    }
+  };
+
+  // Fetch All orders details of specific user
+  const [userAllOrders, setuserAllOrders] = useState([]);
+
+  const fetchUserAllOrders = async () => {
+    const user_id = localStorage.getItem("user_id");
+    try {
+      const response = await UserApi.get(`management/orders/?customer=${user_id}`);
+      setuserAllOrders(response.data);
+    } catch (error) {
+      console.log('Error response:', error.response?.data);
+    }
+  };
+
+  // Create New Order
+  const placeNewOrder = async (orderDetails) => {
+    try {
+      const response = await UserApi.post(`management/orders/`, orderDetails);
+      // return full response so you can get id
+      return response;
+    } catch (error) {
+      console.log('Error response:', error.response?.data);
+    }
+  };
+
+  // Add Item Into New Order
+  const addItemIntoNewOrder = async (ordered_data) => {
+    try {
+      const response = await UserApi.post(`management/order-items/`, ordered_data);
+      console.log(response.data);
+    } catch (error) {
+      console.log('Error response:', error.response?.data);
+    }
+  };
+
+  const addItemsToOrder = async (orderId, cartItems) => {
+    for (const item of cartItems) {
+      const ordered_data = {
+        order: orderId,           // order PK returned from backend
+        menu_item: item.id,       // menu item PK
+        quantity: item.quantity
+      };
+      await addItemIntoNewOrder(ordered_data);
+    }
+  };
+
+  const checkTokens = () => {
+    const access = localStorage.getItem("user_access_token");
+    const refresh = localStorage.getItem("user_refresh_token");
+
+    if (!access || !refresh) {
+      setIsLoggedIn(false);
+    }
+  };
+  useEffect(() => {
+    if (isLoggedIn) {
+      navigator.geolocation.getCurrentPosition(getLocation);
+      fetchUserDetails();
+      checkTokens();
+      const interval = setInterval(checkTokens, 500); // check every 0.5 sec
+      return () => clearInterval(interval);
+    }
+
+    if (!isLoggedIn) {
+      setuserData([]);
+      setLocation("");
+      setLocalRestaurantData([]);
+    }
+
+
+  }, [isLoggedIn, getLocation]);
+
+  return (
+    <UserContext.Provider value={{ isLoggedIn, login, logout, getLocation, userData, updateUserData, location, localRestaurantData, restaurantData, fetchRestaurantDetails, restaurantTables, fetchRestaurantTables, fetchBookingsForDateTime, createTableBooking, myBookings, fetchMyAllBookings, restaurantMenuItems, fetchRestaurantItems, placeNewOrder, addItemsToOrder, userAllOrders, fetchUserAllOrders }}>
+      {props.children}
+    </UserContext.Provider>
+  )
+}
+
+export default UserState;

@@ -1,0 +1,167 @@
+import Aos from "aos";
+import "./App.scss";
+import { useEffect, useContext } from "react";
+import { Toaster } from "react-hot-toast";
+import { MyStateContext } from "./context/Context";
+import { HashRouter, Routes, Route } from "react-router-dom";
+
+// All States 
+import RestaurantState from "./context/RestaurantState";
+import UserState from "./context/UserState";
+import MainState from "./context/MainState";
+// import AdminState from "./context/AdminState";
+
+// General 
+import Main from "./components/general/Main";
+import GeneralLayout from "./components/general/layout/GeneralLayout";
+// import AdminLayout from "./components/admin/AdminLayout";
+import UserLayout from "./components/user/layout/UserLayout";
+import RestaurantLayout from "./components/restaurants/layout/RestaurantLayout";
+
+// import AdminLogin from "./components/admin/AdminLogin";
+import UserLogin from "./components/user/UserLogin";
+import UserRegister from "./components/user/UserRegister";
+import RestaurantLogin from "./components/restaurants/RestaurantLogin";
+import RestaurantRegister from "./components/restaurants/RestaurantRegister";
+import UserDashboard from "./components/user/layout/UserDashboard";
+import LoadingBar from "react-top-loading-bar";
+import Top from "./components/master/Top";
+
+
+import ForgetPassword from "./components/master/ForgetPassword";
+import ResetPassword from "./components/master/ResetPassword";
+import OtpVerification from "./components/master/OtpVerification";
+import NoPage from "./components/error/NoPage";
+import Upi from "./components/UPI";
+
+// Restaurant Routes Import
+import RestaurantProtected from "./components/restaurants/RestaurantProtected";
+import Home from "./components/restaurants/home/Home";
+import Dashboard from "./components/restaurants/dashboard/Dashboard";
+import OrdersList from "./components/restaurants/orders/OrdersList";
+import Menu from "./components/restaurants/menu/Menu";
+import Tables from "./components/restaurants/tables/Tables";
+import Staff from "./components/restaurants/staff/Staff";
+import CustomerEntryandExit from "./components/restaurants/checkinout/CustomerEntryandExit";
+import Profile from "./components/restaurants/settings/Profile";
+import ParternsWithUs from "./components/restaurants/partners/ParternsWithUs";
+
+// Users Routes Import
+import UserProtected from "./components/user/UserProtected";
+import Bookings from "./components/user/bookings/Bookings";
+import MyBookings from "./components/user/bookings/MyBookings";
+import UserProfile from "./components/user/settings/UserProfile";
+import NewOrder from "./components/user/orders/NewOrder";
+import MyOrders from "./components/user/orders/MyOrders";
+import Developers from "./components/master/Developers";
+
+const App = () => {
+  const { progress } = useContext(MyStateContext);
+  useEffect(() => {
+    Aos.init();
+  }, []);
+
+  return (
+    <HashRouter>
+      <Top />
+      <LoadingBar
+        color="#E2293F"
+        height="3px"
+        loaderSpeed="1000"
+        shadow={true}
+        progress={progress}
+      />
+      <Toaster position="top-center" reverseOrder={false} />
+
+      <MainState>
+        <RestaurantState>
+          <UserState>
+            <Routes>
+              {/* General layout Routes */}
+              <Route path="/" element={<GeneralLayout />}>
+                <Route index element={<Main />} />
+
+                {/* User Pannel Routes*/}
+                <Route path="user-register" element={<UserRegister />} />
+                <Route path="user-login" element={<UserLogin />} />
+
+                {/* Restaurant routes */}
+                <Route path="restaurant-login" element={<RestaurantLogin />} />
+                <Route path="restaurant-register" element={<RestaurantRegister />}/>
+              </Route>
+
+              <Route path="otp-verification" element={<OtpVerification />} />
+              <Route path="forget-password" element={<ForgetPassword />} />
+              <Route path="reset-password" element={<ResetPassword />} />
+              <Route path="partner-with-us" element={<ParternsWithUs />} />
+
+              <Route
+                path="payment"
+                element={
+                  <Upi
+                    upiId="stunningchandankmg3366-1@okicici"
+                    name="Chandan Gupta"
+                    amount="1.00"
+                    note="Payment for Testing"
+                  />
+                }
+              />
+
+              {/* Restaurant Routes */}
+              <Route element={<RestaurantProtected />}>
+                <Route path="restaurant" element={<RestaurantLayout />}>
+                  <Route path="home" element={<Home />} />
+                  <Route path="dashboard" element={<Dashboard />} />
+                  <Route path="orders" element={<OrdersList />} />
+                  <Route path="menu" element={<Menu />} />
+                  <Route path="tables" element={<Tables />} />
+                  <Route path="staff" element={<Staff />} />
+                  <Route path="check-in-out" element={<CustomerEntryandExit />} />
+                  <Route path="profile" element={<Profile />} />
+                </Route>
+              </Route>
+
+              <Route element={<UserProtected />}>
+                <Route path="user" element={<UserLayout />}>
+                  {/* User Home Page */}
+                  <Route index element={<UserDashboard />} />
+                  {/* User Profile */}
+                  <Route path="profile" element={<UserProfile />} />
+                  {/* User All Bookings */}
+                  <Route path="bookings/:id" element={<Bookings />} />
+                  {/* New Booking for specific Reatauarnt */}
+                  <Route path="bookings" element={<MyBookings />} />
+                  {/* <Route path="booking-details" element={<AllBooking />} /> */}
+                  {/* User All Orders Current/Past*/}
+                  <Route path="bookings/new-order/:type/:bookingId/:restaurantId/:userId" element={<NewOrder />} />
+
+                   {/* New Order */}
+                  <Route path="orders" element={<MyOrders />} />
+                   {/* Order Checkout Page  */}
+                  {/* <Route path="check-out-order" element={<CheckoutOrder />} /> */}
+                </Route>
+              </Route>
+
+                <Route path="developer" element={<Developers />} />
+              
+              {/* Fallback */}
+              <Route path="*" element={<NoPage />} />
+            </Routes>
+          </UserState>
+        </RestaurantState>
+      </MainState>
+
+      {/* Wrap admin routes in Admin context */}
+      {/* <AdminState>
+        <Routes>
+          <Route path="admin-login" element={<AdminLogin />} />
+          <Route path="/admin" element={<AdminLayout />} >
+          
+          </Route>
+        </Routes>
+      </AdminState> */}
+    </HashRouter>
+  );
+};
+
+export default App;
